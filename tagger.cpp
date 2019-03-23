@@ -724,6 +724,18 @@ bool TaggerImpl::parse_stream(std::istream *is,
   return true;
 }
 
+bool TaggerImpl::parse_input(const std::string input, std::string& output) {
+  if(!read_input(input) || !parse()) {
+    return false;
+  }
+  if (x_.empty()) {
+    return true;
+  }
+  toString();
+  output = os_;
+
+}
+
 const char* TaggerImpl::toString(char *output,
                                  size_t len) {
   const char* p = toString();
@@ -841,7 +853,7 @@ const char *getLastError() {
 }
 
 namespace {
-int crfpp_test(const Param &param) {
+int crfpp_test(const Param &param, const std::string& input, std::string& output) {
   if (param.get<bool>("version")) {
     std::cout <<  param.version();
     return -1;
@@ -858,10 +870,12 @@ int crfpp_test(const Param &param) {
     return -1;
   }
 
+  /*
   std::string output = param.get<std::string>("output");
   if (output.empty()) {
     output = "-";
   }
+
 
   CRFPP::ostream_wrapper os(output.c_str());
   if (!*os) {
@@ -875,6 +889,7 @@ int crfpp_test(const Param &param) {
     rest.push_back("-");
   }
 
+
   for (size_t i = 0; i < rest.size(); ++i) {
     CRFPP::istream_wrapper is(rest[i].c_str());
     if (!*is) {
@@ -885,16 +900,25 @@ int crfpp_test(const Param &param) {
       tagger.parse_stream(is.get(), os.get());
     }
   }
+   */
+  targger.parse_input(input, output);
 
   return 0;
 }
 }  // namepace
 }  // namespace CRFPP
 
-int crfpp_test(int argc, char **argv) {
+int crfpp_test(const std::string& model_file,
+               const std::string& input,
+               std::string& output) {
   CRFPP::Param param;
+  int argc = 2;
+  char* argv[2];
+  std::string flag = "-m";
+  argv[0] = (char*)flag.c_str();
+  argv[1] = (char*)model_file.c_str();
   param.open(argc, argv, long_options);
-  return CRFPP::crfpp_test(param);
+  return CRFPP::crfpp_test(param, input, output);
 }
 
 int crfpp_test2(const char *arg) {
