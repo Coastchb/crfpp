@@ -152,6 +152,12 @@ class TaggerImpl : public Tagger {
   bool clear();
   bool next();
 
+
+  bool parse_input(const std::vector<std::string>*, const std::vector<std::string>*);
+  bool read_input(const std::vector<std::string>*);
+  bool open(const std::string&);
+
+
   unsigned int vlevel() const { return vlevel_; }
 
   float cost_factor() const {

@@ -345,36 +345,6 @@ bool TaggerImpl::add(size_t size, const char **column) {
   return add2(size, column, true);
 }
 
-bool TaggerImpl::add(const char* line) {
-  char *p = allocator_->strdup(line);
-  scoped_fixed_array<const char *, 8192> column;
-  const size_t size = tokenize2(p, "\t ", column.get(), column.size());
-  if (!add2(size, column.get(), false)) {
-    return false;
-  }
-  return true;
-}
-
-bool TaggerImpl::read(std::istream *is) {
-  scoped_fixed_array<char, 8192> line;
-  clear();
-
-  for (;;) {
-    if (!is->getline(line.get(), line.size())) {
-      is->clear(std::ios::eofbit|std::ios::badbit);
-      return true;
-    }
-    if (line[0] == '\0' || line[0] == ' ' || line[0] == '\t') {
-      break;
-    }
-    if (!add(line.get())) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 void TaggerImpl::set_penalty(size_t i, size_t j, double penalty) {
   if (penalty_.empty()) {
     penalty_.resize(node_.size());
@@ -724,7 +694,72 @@ bool TaggerImpl::parse_stream(std::istream *is,
   return true;
 }
 
-bool TaggerImpl::parse_input(const std::string input, std::string& output) {
+bool TaggerImpl::open(const std::string& model) {
+  const size_t nbest_ = 0; //param.get<int>("nbest");
+  //vlevel_ = param.get<int>("verbose");
+
+  //std::string model = param.get<std::string>("model");
+
+  DecoderFeatureIndex *decoder_feature_index = new DecoderFeatureIndex;
+  feature_index_ = decoder_feature_index;
+  allocator_ = new Allocator;
+
+  if (!decoder_feature_index->open(model.c_str())) {
+    WHAT << feature_index_->what();
+    close();
+    return false;
+  }
+
+  const double c = 1.0; //param.get<double>("cost-factor");
+
+  feature_index_->set_cost_factor(c);
+  ysize_ = feature_index_->ysize();
+
+  return true;
+}
+
+
+bool TaggerImpl::add(const char* line) {
+  char *p = allocator_->strdup(line);
+  scoped_fixed_array<const char *, 8192> column;
+  const size_t size = tokenize2(p, "\t ", column.get(), column.size());
+  if (!add2(size, column.get(), false)) {
+    return false;
+  }
+  return true;
+}
+
+bool TaggerImpl::read(std::istream *is) {
+  scoped_fixed_array<char, 8192> line;
+  clear();
+
+  for (;;) {
+    if (!is->getline(line.get(), line.size())) {
+      is->clear(std::ios::eofbit|std::ios::badbit);
+      return true;
+    }
+    if (line[0] == '\0' || line[0] == ' ' || line[0] == '\t') {
+      break;
+    }
+    if (!add(line.get())) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool TaggerImpl::read_input(const std::vector<std::string>* input) {
+  clear();
+  for(auto line : *input) {
+    if(!add(line.c_str())){
+      return false;
+    }
+  }
+  return true;
+}
+bool TaggerImpl::parse_input(const std::vector<std::string>* input,
+  const std::vector<std::string>* output) {
   if(!read_input(input) || !parse()) {
     return false;
   }
@@ -732,7 +767,8 @@ bool TaggerImpl::parse_input(const std::string input, std::string& output) {
     return true;
   }
   toString();
-  output = os_;
+  std::cout << os_;
+  //output = os_;
 
 }
 
@@ -853,7 +889,9 @@ const char *getLastError() {
 }
 
 namespace {
-int crfpp_test(const Param &param, const std::string& input, std::string& output) {
+int crfpp_test(const std::string& model_file, const std::vector<std::string>* input,
+  const std::vector<std::string>* output) {
+  /*
   if (param.get<bool>("version")) {
     std::cout <<  param.version();
     return -1;
@@ -870,7 +908,6 @@ int crfpp_test(const Param &param, const std::string& input, std::string& output
     return -1;
   }
 
-  /*
   std::string output = param.get<std::string>("output");
   if (output.empty()) {
     output = "-";
@@ -901,7 +938,14 @@ int crfpp_test(const Param &param, const std::string& input, std::string& output
     }
   }
    */
-  targger.parse_input(input, output);
+
+  CRFPP::TaggerImpl tagger;
+  if (!tagger.open(model_file)) {
+    std::cerr << tagger.what() << std::endl;
+    return -1;
+  }
+
+  tagger.parse_input(input, output);
 
   return 0;
 }
@@ -909,8 +953,9 @@ int crfpp_test(const Param &param, const std::string& input, std::string& output
 }  // namespace CRFPP
 
 int crfpp_test(const std::string& model_file,
-               const std::string& input,
-               std::string& output) {
+               const std::vector<std::string>* input,
+               const std::vector<std::string>* output) {
+  /*
   CRFPP::Param param;
   int argc = 2;
   char* argv[2];
@@ -918,11 +963,14 @@ int crfpp_test(const std::string& model_file,
   argv[0] = (char*)flag.c_str();
   argv[1] = (char*)model_file.c_str();
   param.open(argc, argv, long_options);
-  return CRFPP::crfpp_test(param, input, output);
+   */
+  return CRFPP::crfpp_test(model_file, input, output);
 }
 
+/*
 int crfpp_test2(const char *arg) {
   CRFPP::Param param;
   param.open(arg, long_options);
   return CRFPP::crfpp_test(param);
 }
+ */
